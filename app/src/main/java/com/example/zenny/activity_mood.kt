@@ -148,8 +148,8 @@ class activity_mood : Fragment() {
         }
 
         val barData = BarData(dataSet)
-        // FIX: Reducing the bar width creates more space for labels
-        barData.barWidth = 0.4f
+        // A barWidth of 0.5f means the bar and the gap each take up 50% of the space.
+        barData.barWidth = 0.5f
 
         barChart.data = barData
         barChart.invalidate()
@@ -168,7 +168,7 @@ class activity_mood : Fragment() {
         xAxis.setDrawGridLines(false)
         xAxis.granularity = 1f
         xAxis.valueFormatter = IndexAxisValueFormatter(EMOJI_LIST)
-        xAxis.textSize = 16f // Reduced size to ensure labels fit
+        xAxis.textSize = 12f // Reduced size to ensure all labels fit
 
         // FIX: These 3 lines work together to force all 5 labels to display correctly
         xAxis.setLabelCount(EMOJI_LIST.size, true)

@@ -37,25 +37,31 @@
             android:textSize="16sp"
             android:layout_gravity="center_vertical" />
 
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginEnd="20dp"
+            android:gravity="center_horizontal">
 
-
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_gravity="center"
-            app:cardCornerRadius="25dp"
-            app:cardElevation="4dp"
-            app:cardBackgroundColor="?attr/colorPrimaryFixed">
-
-            <ImageView
-                android:id="@+id/imagenoti"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
-                android:layout_gravity="center"
+            <de.hdodenhof.circleimageview.CircleImageView
+                android:id="@+id/user"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:src="@drawable/user"
+                app:civ_border_width="2dp"
+                app:civ_border_color="?attr/colorPrimary"
                 android:clickable="true"
-                android:focusable="true"
-                android:src="@drawable/noti" />
-        </com.google.android.material.card.MaterialCardView>
+                android:focusable="true" />
+
+            <TextView
+                android:id="@+id/tv_displayed_name_home"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="User"
+                android:textSize="12sp"
+                android:layout_marginTop="4dp"/>
+        </LinearLayout>
     </LinearLayout>
 
     <LinearLayout

@@ -16,7 +16,9 @@
     <string name="mood">Mood</string>
     <string name="hydration">Hydration</string>
     <string name="select_emoji">Select emoji</string>
-    <string name="mood_journal">Mood Journal</string>
     <string name="how_are_you_feeling_today">How are you Feeling Today ?</string>
     <string name="add">Add</string>
+    <string name="mood_journal">✨ Mood Journal ✨</string>
+    <string name="monthly_analysis">Monthly Analysis</string>
+    <string name="weekly_analysis">Weekly Analysis</string>
 </resources>

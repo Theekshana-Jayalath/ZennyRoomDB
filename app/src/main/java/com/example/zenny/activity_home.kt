@@ -1,17 +1,20 @@
 package com.example.zenny
 
 import android.app.TimePickerDialog
-import android.content.Context
-import android.content.SharedPreferences
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.*
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
+import com.bumptech.glide.Glide
+import com.example.zenny.preferences.HabitPreferences
+import com.example.zenny.preferences.UserPreferences
 import com.google.android.material.bottomnavigation.BottomNavigationView
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import de.hdodenhof.circleimageview.CircleImageView
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -25,19 +28,36 @@ class activity_home : AppCompatActivity() {
     private lateinit var homeContent: View
     private lateinit var fragmentContainer: FrameLayout
     private lateinit var layoutTop: View
+    private lateinit var userProfileIcon: CircleImageView
+    private lateinit var userDisplayedName: TextView
 
-    private val PREFS_NAME = "ZennyPrefs"
-    private val HABITS_KEY = "habits"
-    private val LAST_OPENED_DATE_KEY = "lastOpenedDate"
-    private lateinit var sharedPreferences: SharedPreferences
-    private val gson = Gson()
+    private lateinit var habitPreferences: HabitPreferences
+    private lateinit var userPreferences: UserPreferences
     private var habits = mutableListOf<Habit>()
+
+    private val profileUpdateLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        // This block is called when UserProfileActivity finishes.
+        // We just need to reload the profile data to see changes.
+        loadUserProfileData()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        userPreferences = UserPreferences(this)
+
+        // Check if onboarding is complete. If not, start the flow.
+        if (!userPreferences.isOnboardingComplete()) {
+            val intent = Intent(this, activity_onboard1::class.java)
+            startActivity(intent)
+            finish() // Prevents user from going back to home screen
+            return // Stop further execution of this activity
+        }
+
+        // If onboarding is complete, proceed to load the home screen.
         setContentView(R.layout.activity_home)
 
-        sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        habitPreferences = HabitPreferences.getInstance(this)
 
         habitsContainer = findViewById(R.id.habitsContainer)
         addHabitButton = findViewById(R.id.btn_add_box)
@@ -47,14 +67,21 @@ class activity_home : AppCompatActivity() {
         homeContent = findViewById(R.id.home_content)
         fragmentContainer = findViewById(R.id.fragment_container)
         layoutTop = findViewById(R.id.layoutTop)
+        userProfileIcon = findViewById(R.id.user)
+        userDisplayedName = findViewById(R.id.tv_displayed_name_home)
 
         addHabitButton.setOnClickListener { showAddHabitDialog() }
+
+        userProfileIcon.setOnClickListener {
+            val intent = Intent(this, UserProfileActivity::class.java)
+            profileUpdateLauncher.launch(intent)
+        }
 
         checkDateAndResetProgress()
         loadHabits()
         updateProgress()
+        loadUserProfileData()
 
-        // Bottom navigation listener
         bottomNav.setOnItemSelectedListener { item ->
             var selectedFragment: Fragment? = null
             when (item.itemId) {
@@ -80,37 +107,40 @@ class activity_home : AppCompatActivity() {
         }
     }
 
-    private fun checkDateAndResetProgress() {
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        val lastOpenedDate = sharedPreferences.getString(LAST_OPENED_DATE_KEY, null)
+    private fun loadUserProfileData() {
+        val displayedName = userPreferences.getDisplayedName()
+        userDisplayedName.text = if (!displayedName.isNullOrEmpty()) displayedName else "User"
 
-        if (today != lastOpenedDate) {
-            val editor = sharedPreferences.edit()
-            editor.putString(LAST_OPENED_DATE_KEY, today)
-            // Reset completion status for all habits
-            val json = sharedPreferences.getString(HABITS_KEY, null)
-            if (json != null) {
-                val type = object : TypeToken<MutableList<Habit>>() {}.type
-                val savedHabits: MutableList<Habit> = gson.fromJson(json, type)
-                savedHabits.forEach { it.isCompleted = false }
-                editor.putString(HABITS_KEY, gson.toJson(savedHabits))
+        val imagePath = userPreferences.getProfileImagePath()
+        if (!imagePath.isNullOrEmpty()) {
+            val imageFile = File(imagePath)
+            if (imageFile.exists()) {
+                Glide.with(this)
+                    .load(imageFile) // Load the File directly
+                    .into(userProfileIcon)
+            } else {
+                userProfileIcon.setImageResource(R.drawable.user) // Fallback if file not found
             }
-            editor.apply()
+        } else {
+            userProfileIcon.setImageResource(R.drawable.user) // Default image
+        }
+    }
+
+    private fun checkDateAndResetProgress() {
+        val wasReset = habitPreferences.checkAndResetDailyProgress()
+        if (wasReset) {
+            Toast.makeText(this, "New day! Habits reset for today", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun saveHabits() {
-        val json = gson.toJson(habits)
-        sharedPreferences.edit().putString(HABITS_KEY, json).apply()
+        habitPreferences.saveHabits(habits)
     }
 
     private fun loadHabits() {
-        val json = sharedPreferences.getString(HABITS_KEY, null)
-        if (json != null) {
-            val type = object : TypeToken<MutableList<Habit>>() {}.type
-            habits = gson.fromJson(json, type)
-            habits.forEach { addHabitView(it) }
-        }
+        habits = habitPreferences.loadHabits()
+        habitsContainer.removeAllViews()
+        habits.forEach { addHabitView(it) }
     }
 
     private fun showMainContent(show: Boolean) {
@@ -130,16 +160,9 @@ class activity_home : AppCompatActivity() {
     }
 
     private fun updateProgress() {
-        val total = habits.size
-        if (total == 0) {
-            progressBar.progress = 0
-            progressPercentageText.text = "0%"
-            return
-        }
-        val completed = habits.count { it.isCompleted }
-        val progress = (completed * 100) / total
-        progressBar.progress = progress
-        progressPercentageText.text = "$progress%"
+        val progressPercentage = habitPreferences.getProgressPercentage()
+        progressBar.progress = progressPercentage
+        progressPercentageText.text = "$progressPercentage%"
     }
 
     private fun showAddHabitDialog() {
@@ -166,9 +189,11 @@ class activity_home : AppCompatActivity() {
                     val habit = Habit(name, if (selectedTime.isNotEmpty()) selectedTime else "No time set")
                     habits.add(habit)
                     addHabitView(habit)
-                    saveHabits()
+                    habitPreferences.addHabit(habit)
+                    updateProgress()
+                    Toast.makeText(this, "Habit added", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this, "Enter a habit name", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Please enter a habit name", Toast.LENGTH_SHORT).show()
                 }
             }
             .setNegativeButton("Cancel", null)
@@ -189,14 +214,23 @@ class activity_home : AppCompatActivity() {
 
         checkBox.setOnCheckedChangeListener { _, isChecked ->
             habit.isCompleted = isChecked
+            habitPreferences.updateHabitCompletion(habit, isChecked)
             updateProgress()
-            saveHabits()
         }
+        
         delete.setOnClickListener {
-            habits.remove(habit)
-            habitsContainer.removeView(habitView)
-            updateProgress()
-            saveHabits()
+            AlertDialog.Builder(this)
+                .setTitle("Delete Habit")
+                .setMessage("Are you sure you want to delete '${habit.name}'?")
+                .setPositiveButton("Delete") { _, _ ->
+                    habits.remove(habit)
+                    habitsContainer.removeView(habitView)
+                    habitPreferences.removeHabit(habit)
+                    updateProgress()
+                    Toast.makeText(this, "Habit deleted", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
         edit.setOnClickListener { showEditHabitDialog(habit, tvName, tvTime) }
 

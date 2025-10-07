@@ -38,6 +38,7 @@
         android:id="@+id/buttonContainer"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginTop="-40dp"
         app:layout_constraintTop_toBottomOf="@+id/calendarView"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -50,7 +51,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Weekly Analysis"/>
+            android:text="@string/weekly_analysis"/>
 
         <Button
             android:id="@+id/btnMonthly"
@@ -58,7 +59,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Monthly Analysis"/>
+            android:text="@string/monthly_analysis"/>
     </com.google.android.material.button.MaterialButtonToggleGroup>
 
     <!-- Analysis Area -->
@@ -79,7 +80,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:padding="1dp">
 
             <com.github.mikephil.charting.charts.HorizontalBarChart
                 android:id="@+id/barChart"
