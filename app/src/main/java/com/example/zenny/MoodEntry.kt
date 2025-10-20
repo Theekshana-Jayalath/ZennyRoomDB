@@ -4,7 +4,7 @@ import org.json.JSONObject
 
 data class MoodEntry(
     val id: String,
-    val dateIso: String, // e.g., 2025-09-16
+    val dateIso: String,
     val emoji: String,
     val note: String? = null,
     val timestamp: Long = System.currentTimeMillis()

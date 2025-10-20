@@ -3,22 +3,17 @@ package com.example.zenny.preferences
 import android.content.Context
 import com.example.zenny.Habit
 
-/**
- * Demonstration class showing how to use the new HabitPreferences system.
- * This class provides examples of all the available operations.
- */
+
 class HabitPreferencesDemo(private val context: Context) {
     
     private val habitPreferences = HabitPreferences.getInstance(context)
     
-    /**
-     * Demonstrates basic habit operations
-     */
+
     fun demonstrateBasicOperations() {
         println("🚀 ZENNY Habit Preferences Demo Started")
         println("=".repeat(50))
         
-        // 1. Check if we have any existing habits
+
         println("📊 Current Habits Status:")
         println("   Has habits: ${habitPreferences.hasHabits()}")
         println("   Total habits: ${habitPreferences.getHabitCount()}")
@@ -26,7 +21,7 @@ class HabitPreferencesDemo(private val context: Context) {
         println("   Progress: ${habitPreferences.getProgressPercentage()}%")
         println()
         
-        // 2. Add some sample habits
+
         println("➕ Adding Sample Habits:")
         val sampleHabits = listOf(
             Habit("Drink Water", "8:00 AM"),
@@ -41,7 +36,7 @@ class HabitPreferencesDemo(private val context: Context) {
         }
         println()
         
-        // 3. Load and display all habits
+
         println("📂 Loading All Habits:")
         val loadedHabits = habitPreferences.loadHabits()
         loadedHabits.forEachIndexed { index, habit ->
@@ -49,7 +44,7 @@ class HabitPreferencesDemo(private val context: Context) {
         }
         println()
         
-        // 4. Mark some habits as completed
+
         println("✅ Marking Some Habits as Completed:")
         if (loadedHabits.isNotEmpty()) {
             habitPreferences.updateHabitCompletion(loadedHabits[0], true)
@@ -62,14 +57,14 @@ class HabitPreferencesDemo(private val context: Context) {
         }
         println()
         
-        // 5. Show updated progress
+
         println("📊 Updated Progress:")
         println("   Completed habits: ${habitPreferences.getCompletedHabitsCount()}")
         println("   Total habits: ${habitPreferences.getHabitCount()}")
         println("   Progress: ${habitPreferences.getProgressPercentage()}%")
         println()
         
-        // 6. Filter habits by completion status
+
         println("🔍 Filtering Habits:")
         val completedHabits = habitPreferences.getHabitsByCompletionStatus(true)
         val pendingHabits = habitPreferences.getHabitsByCompletionStatus(false)
@@ -85,13 +80,13 @@ class HabitPreferencesDemo(private val context: Context) {
         }
         println()
         
-        // 7. Export habits as JSON
+
         println("💾 Export/Import Demo:")
         val exportedJson = habitPreferences.exportHabitsAsJson()
         println("   Exported JSON (first 100 chars): ${exportedJson.take(100)}...")
         println()
         
-        // 8. Test date reset functionality
+
         println("📅 Testing Date Reset:")
         val wasReset = habitPreferences.checkAndResetDailyProgress()
         println("   Was reset today: $wasReset")
@@ -102,14 +97,12 @@ class HabitPreferencesDemo(private val context: Context) {
         println("=".repeat(50))
     }
     
-    /**
-     * Demonstrates advanced preference operations
-     */
+
     fun demonstrateAdvancedOperations() {
         println("🔧 Advanced Operations Demo")
         println("-".repeat(30))
         
-        // Update a habit
+
         val habits = habitPreferences.loadHabits()
         if (habits.isNotEmpty()) {
             val oldHabit = habits[0]
@@ -119,7 +112,7 @@ class HabitPreferencesDemo(private val context: Context) {
             println("🔄 Updated habit: ${oldHabit.name} -> ${newHabit.name}")
         }
         
-        // Test import functionality
+
         val testJson = """[{"name":"Test Habit","time":"12:00 PM","isCompleted":false}]"""
         val importSuccess = habitPreferences.importHabitsFromJson(testJson)
         println("📥 Import test result: $importSuccess")
@@ -127,9 +120,7 @@ class HabitPreferencesDemo(private val context: Context) {
         println("✨ Advanced demo completed!")
     }
     
-    /**
-     * Clean up demo data
-     */
+
     fun cleanupDemo() {
         println("🧹 Cleaning up demo data...")
         habitPreferences.clearAllHabits()

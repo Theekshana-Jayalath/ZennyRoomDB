@@ -14,17 +14,30 @@ class ReminderBroadcastReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // Create and show the notification
+
+        val openAppIntent = Intent(context, activity_home::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, openAppIntent, 
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+
         val notification = NotificationCompat.Builder(context, "HYDRATION_CHANNEL_ID")
             .setSmallIcon(R.drawable.ic_drop)
-            .setContentTitle("Time to Hydrate!")
-            .setContentText("Don't forget to drink some water.")
+            .setContentTitle("💧 Time to Hydrate!")
+            .setContentText("Don't forget to drink some water. Stay healthy!")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setVibrate(longArrayOf(0, 300, 300, 300))
+            .setDefaults(NotificationCompat.DEFAULT_SOUND)
             .build()
 
         notificationManager.notify(System.currentTimeMillis().toInt(), notification)
 
-        // --- Re-schedule the next alarm ---
+
         val prefs = context.getSharedPreferences("HydrationPrefs", Context.MODE_PRIVATE)
         val remindersEnabled = prefs.getBoolean("reminders_enabled", true)
 
@@ -35,7 +48,7 @@ class ReminderBroadcastReceiver : BroadcastReceiver() {
                 putExtra("EXTRA_INTERVAL", interval)
             }
 
-            // ** THE FIX: Use the SAME request code as the Fragment to ensure we are updating the same alarm **
+
             val pendingIntent = PendingIntent.getBroadcast(
                 context, HydrationFragment.Companion.REQUEST_CODE_ALARM, nextIntent,
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT

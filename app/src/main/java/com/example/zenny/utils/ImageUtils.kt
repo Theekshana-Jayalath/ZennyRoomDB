@@ -9,14 +9,6 @@ import java.io.InputStream
 
 object ImageUtils {
 
-    /**
-     * Copies an image from a given Uri to the app's internal storage.
-     * This provides a permanent and safe file path to access the image later.
-     *
-     * @param context The context.
-     * @param uri The content URI of the image to copy.
-     * @return A permanent File object pointing to the copied image, or null on failure.
-     */
     fun copyImageToInternalStorage(context: Context, uri: Uri): File? {
         return try {
             val inputStream: InputStream? = context.contentResolver.openInputStream(uri)

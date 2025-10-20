@@ -40,7 +40,7 @@ class MoodPreference(private val context: Context) {
             saveAll(list)
             return
         }
-        // Otherwise replace by date (one mood per date)
+
         val idxByDate = list.indexOfFirst { it.dateIso == entry.dateIso }
         if (idxByDate >= 0) {
             list[idxByDate] = entry
@@ -59,19 +59,19 @@ class MoodPreference(private val context: Context) {
         saveAll(list)
     }
 
-    // Get moods for a specific ISO date (yyyy-MM-dd)
+
     fun getForDate(dateIso: String): List<MoodEntry> {
         return getAll().filter { it.dateIso == dateIso }
     }
 
-    // Get moods for a month (year, monthIndex 0-based)
+
     fun getForMonth(year: Int, monthZeroBased: Int): List<MoodEntry> {
         val monthStr = if (monthZeroBased + 1 < 10) "0${monthZeroBased + 1}" else "${monthZeroBased + 1}"
         val prefix = "%04d-%s".format(year, monthStr)
         return getAll().filter { it.dateIso.startsWith(prefix) }
     }
 
-    // Add this inside your MoodPreference class
+
 
     fun getForDateRange(start: org.threeten.bp.LocalDate, end: org.threeten.bp.LocalDate): List<MoodEntry> {
         val allMoods = getAll()
@@ -82,7 +82,7 @@ class MoodPreference(private val context: Context) {
                 val moodDate = org.threeten.bp.LocalDate.parse(it.dateIso, formatter)
                 !moodDate.isBefore(start) && !moodDate.isAfter(end)
             } catch (e: Exception) {
-                // Handle cases where the date string is malformed or null
+
                 false
             }
         }

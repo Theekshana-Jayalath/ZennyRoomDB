@@ -43,19 +43,19 @@ class HydrationFragment : Fragment() {
     private lateinit var countdownTextView: TextView
     private lateinit var reminderSpinner: Spinner
     private lateinit var countDownProgress: CircularProgressIndicator
-    private lateinit var glassSizeTextView: TextView // Added for glass size display
+    private lateinit var glassSizeTextView: TextView
     private lateinit var refreshButton: ImageButton
 
-    // State variables
     private var dailyGoal: Int = 0
     private var currentIntake: Int = 0
-    private var lastAddedAmount: Int = 0 // User's defined glass size
-    private var wakingHours: Int = 8 // User's defined waking hours
-    private var currentCountdownTotalDuration: Long = 0L // WORKAROUND: Store total duration here
+    private var lastAddedAmount: Int = 0
+    private var wakingHours: Int = 8
+    private var currentCountdownTotalDuration: Long = 0L
+    private var pendingReminderInterval: Long = 0L
 
     private lateinit var prefs: SharedPreferences
 
-    // Use an ordered map to guarantee spinner position matches the map entry
+
     private val reminderOptions = linkedMapOf(
         "Off" to 0L,
         "10 Seconds (Test)" to 10 * 1000L,
@@ -92,7 +92,7 @@ class HydrationFragment : Fragment() {
         setupClickListeners()
 
         loadData()
-        // resumeCountdownState() // MOVED to onResume for better lifecycle handling
+
         setupSpinnerListener()
 
         return view
@@ -138,6 +138,12 @@ class HydrationFragment : Fragment() {
             }
             currentIntake += lastAddedAmount
             updateIntakeUI()
+
+
+            val reminderInterval = prefs.getLong(KEY_REMINDER_INTERVAL, 0)
+            if (reminderInterval > 0) {
+                startReminders(reminderInterval)
+            }
         }
 
         refreshButton.setOnClickListener {
@@ -165,7 +171,13 @@ class HydrationFragment : Fragment() {
             override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
                 val selectedInterval = reminderOptions.values.toList()[position]
                 if (selectedInterval > 0) {
-                    checkPermissionsAndStartReminders(selectedInterval)
+
+                    if (areNotificationsEnabled()) {
+                        checkPermissionsAndStartReminders(selectedInterval)
+                    } else {
+                        Toast.makeText(requireContext(), "Notifications are disabled in system settings. Please enable them for reminders to work.", Toast.LENGTH_LONG).show()
+                        reminderSpinner.setSelection(0) // Reset to "Off"
+                    }
                 } else {
                     stopReminders()
                 }
@@ -174,12 +186,38 @@ class HydrationFragment : Fragment() {
         }
     }
 
-    private fun checkPermissionsAndStartReminders(interval: Long) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(requireContext(), android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+    private fun areNotificationsEnabled(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val notificationManager = requireContext().getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.areNotificationsEnabled()
         } else {
-            startReminders(interval)
+            true
         }
+    }
+
+    private fun checkPermissionsAndStartReminders(interval: Long) {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(requireContext(), android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+
+                pendingReminderInterval = interval
+                requestPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                return
+            }
+        }
+        
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = requireContext().getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            if (!alarmManager.canScheduleExactAlarms()) {
+                Toast.makeText(requireContext(), "Please enable exact alarms in system settings for reminders to work properly.", Toast.LENGTH_LONG).show()
+
+                return
+            }
+        }
+        
+
+        startReminders(interval)
     }
 
     private fun startReminders(interval: Long) {
@@ -264,7 +302,7 @@ class HydrationFragment : Fragment() {
         val addButton = dialogView.findViewById<Button>(R.id.addButton)
         val cancelButton = dialogView.findViewById<Button>(R.id.cancelButton)
 
-        // Populate hours spinner
+
         val hoursOptions = (8..18).map { "$it hours" }
         val hoursAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, hoursOptions)
         hoursAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -282,9 +320,9 @@ class HydrationFragment : Fragment() {
                 currentIntake = 0
 
                 updateIntakeUI()
-                updateGlassSizeText() // Update the glass size text
+                updateGlassSizeText()
 
-                // Recalculate goal based on new glass size and existing reminder
+
                 val selectedReminderPosition = reminderSpinner.selectedItemPosition
                 val selectedInterval = reminderOptions.values.toList()[selectedReminderPosition]
                 calculateAndSetDailyGoal(selectedInterval)
@@ -307,15 +345,21 @@ class HydrationFragment : Fragment() {
     private fun calculateAndSetDailyGoal(reminderInterval: Long) {
         if (lastAddedAmount > 0 && wakingHours > 0) {
             if (reminderInterval > 0) {
+                // For goal calculation, use a realistic minimum interval (e.g., 15 mins)
+                // to avoid absurdly large goals when using short test timers like "10 seconds".
+                // The actual reminders will still fire at the user-selected interval.
+                val minRealisticInterval = 15 * 60 * 1000L // 15 minutes
+                val calculationInterval = if (reminderInterval < minRealisticInterval) minRealisticInterval else reminderInterval
+
                 val wakingHoursInMillis = wakingHours * 60 * 60 * 1000L
-                val numberOfDrinks = wakingHoursInMillis / reminderInterval
+                val numberOfDrinks = wakingHoursInMillis / calculationInterval
                 dailyGoal = (numberOfDrinks * lastAddedAmount).toInt()
             } else {
-                // If reminders are off, calculate based on one glass per hour of waking time.
+
                 dailyGoal = lastAddedAmount * wakingHours
             }
         } else {
-            // Fallback if no glass size is set
+
             dailyGoal = 0
         }
         updateIntakeUI()
@@ -354,7 +398,12 @@ class HydrationFragment : Fragment() {
             val name = "Hydration Reminders"
             val descriptionText = "Notifications to remind you to drink water"
             val importance = NotificationManager.IMPORTANCE_HIGH
-            val channel = NotificationChannel("HYDRATION_CHANNEL_ID", name, importance).apply { description = descriptionText }
+            val channel = NotificationChannel("HYDRATION_CHANNEL_ID", name, importance).apply { 
+                description = descriptionText
+                enableLights(true)
+                enableVibration(true)
+                setShowBadge(true)
+            }
             val notificationManager = requireContext().getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
@@ -362,12 +411,23 @@ class HydrationFragment : Fragment() {
 
     private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (isGranted) {
-            val selectedInterval = prefs.getLong(KEY_REMINDER_INTERVAL, 0)
-            if (selectedInterval > 0) {
-                startReminders(selectedInterval)
+            Toast.makeText(requireContext(), "Notification permission granted! Setting up reminders...", Toast.LENGTH_SHORT).show()
+
+            if (pendingReminderInterval > 0) {
+                startReminders(pendingReminderInterval)
+                pendingReminderInterval = 0L // Reset after use
+            } else {
+
+                val selectedInterval = prefs.getLong(KEY_REMINDER_INTERVAL, 0)
+                if (selectedInterval > 0) {
+                    startReminders(selectedInterval)
+                }
             }
         } else {
-            Toast.makeText(requireContext(), "Notification permission denied. Reminders will not work.", Toast.LENGTH_LONG).show()
+            Toast.makeText(requireContext(), "Notification permission denied. Reminders will not work. Please enable notifications in app settings.", Toast.LENGTH_LONG).show()
+
+            reminderSpinner.setSelection(0)
+            stopReminders()
         }
     }
 
@@ -397,13 +457,13 @@ class HydrationFragment : Fragment() {
                 putInt(KEY_REMINDER_POS, 0) // This will make the spinner select "Off"
                 apply()
             }
-            // Stop the service from running in the background from yesterday
+
             val serviceIntent = Intent(requireContext(), WaterReminderService::class.java).apply {
                 action = WaterReminderService.ACTION_STOP_TIMER
             }
             requireContext().startService(serviceIntent)
 
-            // Cancel any pending alarm from yesterday
+
             val alarmIntent = Intent(requireContext(), ReminderBroadcastReceiver::class.java)
             val pendingIntent = PendingIntent.getBroadcast(
                 requireContext(),
@@ -420,14 +480,14 @@ class HydrationFragment : Fragment() {
         lastAddedAmount = prefs.getInt(KEY_GLASS_SIZE, 0)
         wakingHours = prefs.getInt(KEY_WAKING_HOURS, 8)
 
-        // Recalculate goal on every load to ensure it's up-to-date with settings.
-        // This will use the "Off" state if it's a new day.
+
+
         val reminderPosition = prefs.getInt(KEY_REMINDER_POS, 0)
         val selectedInterval = reminderOptions.values.toList().getOrElse(reminderPosition) { 0L }
         calculateAndSetDailyGoal(selectedInterval)
 
         updateIntakeUI()
-        updateGlassSizeText() // Update the glass size on initial load
+        updateGlassSizeText()
     }
 
     private fun resumeCountdownState() {
@@ -439,10 +499,10 @@ class HydrationFragment : Fragment() {
                 currentCountdownTotalDuration = originalInterval
                 val remainingTime = endTime - System.currentTimeMillis()
                 if (remainingTime > 0) {
-                    // Countdown is still active, resume it.
+
                     startCountdownService(originalInterval, remainingTime)
                 } else {
-                    // Timer expired while app was closed. Start the next reminder cycle automatically.
+
                     startReminders(originalInterval)
                 }
             }

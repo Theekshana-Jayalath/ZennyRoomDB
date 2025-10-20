@@ -36,7 +36,7 @@ class HalfCircleProgress @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-        // Force a 2:1 aspect ratio based on the width to ensure it's a perfect semicircle
+
         val width = MeasureSpec.getSize(widthMeasureSpec)
         setMeasuredDimension(width, width / 2)
     }
@@ -45,7 +45,7 @@ class HalfCircleProgress @JvmOverloads constructor(
         super.onDraw(canvas)
 
         val strokeWidth = backgroundPaint.strokeWidth
-        // The drawing area is inset by half the stroke width to avoid clipping
+
         val drawingRect = RectF(
             paddingLeft + strokeWidth / 2f,
             paddingTop + strokeWidth / 2f,
@@ -64,10 +64,10 @@ class HalfCircleProgress @JvmOverloads constructor(
             centerY + radius
         )
 
-        // Draw the gray background semicircle
+
         canvas.drawArc(oval, 180f, 180f, false, backgroundPaint)
 
-        // Draw the blue progress arc
+
         val sweepAngle = (progress / 100f) * 180f
         canvas.drawArc(oval, 180f, sweepAngle, false, progressPaint)
     }

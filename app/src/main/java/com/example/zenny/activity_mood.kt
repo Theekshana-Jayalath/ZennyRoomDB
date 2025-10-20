@@ -21,12 +21,10 @@ import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import com.github.mikephil.charting.formatter.ValueFormatter
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.google.android.material.button.MaterialButtonToggleGroup
 import com.prolificinteractive.materialcalendarview.CalendarDay
 import com.prolificinteractive.materialcalendarview.DayViewDecorator
 import com.prolificinteractive.materialcalendarview.DayViewFacade
 import com.prolificinteractive.materialcalendarview.MaterialCalendarView
-import org.threeten.bp.DayOfWeek
 import org.threeten.bp.LocalDate
 import org.threeten.bp.ZoneId
 import org.threeten.bp.temporal.TemporalAdjusters
@@ -36,7 +34,6 @@ import java.util.*
 class activity_mood : Fragment() {
 
     private lateinit var calendarView: MaterialCalendarView
-    private lateinit var toggleGroup: MaterialButtonToggleGroup
     private lateinit var barChart: BarChart
     private lateinit var pref: MoodPreference
 
@@ -51,8 +48,6 @@ class activity_mood : Fragment() {
         initializeViews(v)
         setupListeners()
         setupBarChart()
-
-        toggleGroup.check(R.id.btnWeekly)
         refreshAll()
 
         return v
@@ -60,7 +55,6 @@ class activity_mood : Fragment() {
 
     private fun initializeViews(v: android.view.View) {
         calendarView = v.findViewById(R.id.calendarView)
-        toggleGroup = v.findViewById(R.id.buttonContainer)
         barChart = v.findViewById(R.id.barChart)
         calendarView.selectionColor = Color.TRANSPARENT
     }
@@ -68,49 +62,30 @@ class activity_mood : Fragment() {
     private fun setupListeners() {
         calendarView.setOnDateChangedListener { _, date, _ ->
             calendarView.clearSelection()
-            val clickedDate = String.format("%04d-%02d-%02d", date.year, date.month, date.day)
             if (date.isAfter(CalendarDay.today())) {
                 Toast.makeText(requireContext(), "Cannot add moods for future dates", Toast.LENGTH_SHORT).show()
-            } else {
-                val bs = AddMoodBottomSheet.newInstance(clickedDate)
-                bs.onSaved = { entry ->
-                    pref.addOrUpdate(entry)
-                    Toast.makeText(requireContext(), "Mood saved!", Toast.LENGTH_SHORT).show()
-                    refreshAll()
-                }
-                bs.show(childFragmentManager, "addMood")
+                return@setOnDateChangedListener
             }
+
+            // Because past dates are disabled by the decorator, this will only fire for today
+            val clickedDate = String.format("%04d-%02d-%02d", date.year, date.month, date.day)
+            val bs = AddMoodBottomSheet.newInstance(clickedDate)
+            bs.onSaved = { entry ->
+                pref.addOrUpdate(entry)
+                Toast.makeText(requireContext(), "Mood saved!", Toast.LENGTH_SHORT).show()
+                refreshAll()
+            }
+            bs.show(childFragmentManager, "addMood")
         }
 
         calendarView.setOnMonthChangedListener { _, date ->
-            if (toggleGroup.checkedButtonId == R.id.btnMonthly) {
-                updateMonthlyAnalysis(date)
-            }
-        }
-
-        toggleGroup.addOnButtonCheckedListener { _, _, isChecked ->
-            if (!isChecked) return@addOnButtonCheckedListener
-            refreshAll()
+            updateMonthlyAnalysis(date)
         }
     }
 
     private fun refreshAll() {
         refreshCalendarDecorators()
-        if (toggleGroup.checkedButtonId == R.id.btnWeekly) {
-            updateWeeklyAnalysis(calendarView.currentDate)
-        } else {
-            updateMonthlyAnalysis(calendarView.currentDate)
-        }
-    }
-
-    private fun updateWeeklyAnalysis(day: CalendarDay) {
-        val date = LocalDate.of(day.year, day.month, day.day)
-        val startOfWeek = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-        val endOfWeek = date.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
-        val moods = pref.getForDateRange(startOfWeek, endOfWeek)
-        barChart.axisRight.axisMaximum = 7f
-        barChart.axisLeft.axisMaximum = 7f
-        updateChartData(moods)
+        updateMonthlyAnalysis(calendarView.currentDate)
     }
 
     private fun updateMonthlyAnalysis(day: CalendarDay) {
@@ -148,7 +123,6 @@ class activity_mood : Fragment() {
         }
 
         val barData = BarData(dataSet)
-        // A barWidth of 0.5f means the bar and the gap each take up 50% of the space.
         barData.barWidth = 0.5f
 
         barChart.data = barData
@@ -168,15 +142,15 @@ class activity_mood : Fragment() {
         xAxis.setDrawGridLines(false)
         xAxis.granularity = 1f
         xAxis.valueFormatter = IndexAxisValueFormatter(EMOJI_LIST)
-        xAxis.textSize = 12f // Reduced size to ensure all labels fit
+        xAxis.textSize = 12f
 
-        // FIX: These 3 lines work together to force all 5 labels to display correctly
+
         xAxis.setLabelCount(EMOJI_LIST.size, true)
         xAxis.setCenterAxisLabels(true)
         xAxis.axisMinimum = -0.5f
         xAxis.axisMaximum = EMOJI_LIST.size - 0.5f
 
-        // --- Y-Axis (Right - Count) ---
+
         barChart.axisLeft.isEnabled = false
         val yAxisRight = barChart.axisRight
         yAxisRight.axisMinimum = 0f
@@ -186,6 +160,7 @@ class activity_mood : Fragment() {
 
     private fun refreshCalendarDecorators() {
         calendarView.removeDecorators()
+        calendarView.addDecorator(DisablePastDatesDecorator()) // Disable past dates
         val moods = pref.getAll()
         moods.forEach { mood ->
             val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse( mood.dateIso )
@@ -197,6 +172,15 @@ class activity_mood : Fragment() {
             }
         }
         calendarView.addDecorator(TodayDecorator())
+    }
+
+    private inner class DisablePastDatesDecorator : DayViewDecorator {
+        override fun shouldDecorate(day: CalendarDay): Boolean {
+            return day.isBefore(CalendarDay.today())
+        }
+        override fun decorate(view: DayViewFacade) {
+            view.setDaysDisabled(true)
+        }
     }
 
     private inner class EmojiDecorator(private val date: CalendarDay, private val emoji: String) : DayViewDecorator {

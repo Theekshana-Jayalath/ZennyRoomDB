@@ -11,13 +11,13 @@ class WaterReminderService : Service() {
 
     private var countDownTimer: CountDownTimer? = null
     private var timeRemaining: Long = 0
-    private var initialInterval: Long = 0 // The full, original duration (e.g., 15 minutes)
+    private var initialInterval: Long = 0
 
     companion object {
         const val ACTION_START_OR_UPDATE_TIMER = "com.example.zenny.action.START_OR_UPDATE_TIMER"
         const val ACTION_STOP_TIMER = "com.example.zenny.action.STOP_TIMER"
-        const val EXTRA_INTERVAL = "com.example.zenny.extra.INTERVAL" // The full, original duration
-        const val EXTRA_TIME_LEFT = "com.example.zenny.extra.TIME_LEFT" // The time to actually count down from
+        const val EXTRA_INTERVAL = "com.example.zenny.extra.INTERVAL"
+        const val EXTRA_TIME_LEFT = "com.example.zenny.extra.TIME_LEFT"
         const val COUNTDOWN_TICK = "com.example.zenny.countdown_tick"
         const val EXTRA_TIME_REMAINING = "com.example.zenny.extra.TIME_REMAINING"
         const val EXTRA_INITIAL_TIME = "com.example.zenny.extra.INITIAL_TIME"
@@ -27,15 +27,14 @@ class WaterReminderService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START_OR_UPDATE_TIMER -> {
-                // The full duration of the timer (e.g., 15 minutes)
+
                 val interval = intent.getLongExtra(EXTRA_INTERVAL, 0)
-                // The actual time left to count down (e.g., 9 minutes)
-                // If not provided, it defaults to the full interval (for new timers)
+
                 val timeLeft = intent.getLongExtra(EXTRA_TIME_LEFT, interval)
 
                 if (interval > 0 && timeLeft > 0) {
-                    initialInterval = interval // Always store the full, original duration
-                    startTimer(timeLeft) // Start counting down from the *actual* time left
+                    initialInterval = interval
+                    startTimer(timeLeft)
                 }
             }
             ACTION_STOP_TIMER -> {

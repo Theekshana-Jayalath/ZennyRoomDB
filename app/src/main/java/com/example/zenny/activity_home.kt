@@ -1,13 +1,17 @@
 package com.example.zenny
 
+import android.Manifest
 import android.app.TimePickerDialog
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.bumptech.glide.Glide
 import com.example.zenny.preferences.HabitPreferences
@@ -36,26 +40,43 @@ class activity_home : AppCompatActivity() {
     private var habits = mutableListOf<Habit>()
 
     private val profileUpdateLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        // This block is called when UserProfileActivity finishes.
-        // We just need to reload the profile data to see changes.
         loadUserProfileData()
     }
+
+    private val requestPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+            if (isGranted) {
+                // Permission is granted. You can now schedule notifications.
+                Toast.makeText(this, "Notifications enabled!", Toast.LENGTH_SHORT).show()
+            } else {
+                // Permission is denied. Show a message to the user.
+                Toast.makeText(this, "Notifications permission denied. Reminders will not work.", Toast.LENGTH_LONG).show()
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         userPreferences = UserPreferences(this)
 
-        // Check if onboarding is complete. If not, start the flow.
         if (!userPreferences.isOnboardingComplete()) {
             val intent = Intent(this, activity_onboard1::class.java)
             startActivity(intent)
-            finish() // Prevents user from going back to home screen
-            return // Stop further execution of this activity
+            finish()
+            return
         }
 
-        // If onboarding is complete, proceed to load the home screen.
         setContentView(R.layout.activity_home)
+
+        // Request notification permission on startup
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
 
         habitPreferences = HabitPreferences.getInstance(this)
 
