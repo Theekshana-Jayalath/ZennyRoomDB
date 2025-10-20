@@ -53,10 +53,15 @@ dependencies {
     implementation("com.jakewharton.threetenabp:threetenabp:1.4.7")
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
-    implementation("com.google.code.gson:gson:2.9.0")
     implementation("de.hdodenhof:circleimageview:3.1.0")
     implementation("com.github.bumptech.glide:glide:4.12.0")
     kapt("com.github.bumptech.glide:compiler:4.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // Room ORM
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
 
 
 }

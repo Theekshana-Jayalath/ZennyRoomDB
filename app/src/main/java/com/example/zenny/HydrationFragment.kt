@@ -9,7 +9,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.SharedPreferences
+import com.example.zenny.data.DatabaseProvider
+import com.example.zenny.data.entity.HydrationStateEntity
+import com.example.zenny.data.repository.HydrationRepository
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -53,7 +55,7 @@ class HydrationFragment : Fragment() {
     private var currentCountdownTotalDuration: Long = 0L
     private var pendingReminderInterval: Long = 0L
 
-    private lateinit var prefs: SharedPreferences
+    private lateinit var hydrationRepo: HydrationRepository
 
 
     private val reminderOptions = linkedMapOf(
@@ -85,7 +87,7 @@ class HydrationFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_hydration, container, false)
-        prefs = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    hydrationRepo = HydrationRepository(DatabaseProvider.get(requireContext()))
 
         initializeViews(view)
         createNotificationChannel()
@@ -100,13 +102,13 @@ class HydrationFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        LocalBroadcastManager.getInstance(requireContext()).registerReceiver(countdownReceiver, IntentFilter(WaterReminderService.COUNTDOWN_TICK))
+    LocalBroadcastManager.getInstance(requireContext()).registerReceiver(countdownReceiver, IntentFilter(WaterReminderService.COUNTDOWN_TICK))
         resumeCountdownState()
     }
 
     override fun onPause() {
         super.onPause()
-        saveData()
+    saveData()
         LocalBroadcastManager.getInstance(requireContext()).unregisterReceiver(countdownReceiver)
     }
 
@@ -140,7 +142,7 @@ class HydrationFragment : Fragment() {
             updateIntakeUI()
 
 
-            val reminderInterval = prefs.getLong(KEY_REMINDER_INTERVAL, 0)
+            val reminderInterval = kotlinx.coroutines.runBlocking { hydrationRepo.get().reminderInterval }
             if (reminderInterval > 0) {
                 startReminders(reminderInterval)
             }
@@ -164,7 +166,7 @@ class HydrationFragment : Fragment() {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         reminderSpinner.adapter = adapter
 
-        val reminderPosition = prefs.getInt(KEY_REMINDER_POS, 0)
+    val reminderPosition = kotlinx.coroutines.runBlocking { hydrationRepo.get().reminderPos }
         reminderSpinner.setSelection(reminderPosition, false)
 
         reminderSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
@@ -223,12 +225,14 @@ class HydrationFragment : Fragment() {
     private fun startReminders(interval: Long) {
         val endTime = System.currentTimeMillis() + interval
         currentCountdownTotalDuration = interval
-        prefs.edit().apply {
-            putBoolean(KEY_REMINDERS_ENABLED, true)
-            putLong(KEY_REMINDER_INTERVAL, interval)
-            putLong(KEY_REMINDER_END_TIME, endTime)
-            putInt(KEY_REMINDER_POS, reminderSpinner.selectedItemPosition)
-            apply()
+        kotlinx.coroutines.runBlocking {
+            val s = hydrationRepo.get().copy(
+                remindersEnabled = true,
+                reminderInterval = interval,
+                reminderEndTime = endTime,
+                reminderPos = reminderSpinner.selectedItemPosition
+            )
+            hydrationRepo.save(s)
         }
 
         calculateAndSetDailyGoal(interval)
@@ -262,11 +266,13 @@ class HydrationFragment : Fragment() {
 
     private fun stopReminders() {
         currentCountdownTotalDuration = 0L
-        prefs.edit().apply{
-            putBoolean(KEY_REMINDERS_ENABLED, false)
-            putLong(KEY_REMINDER_END_TIME, 0)
-            putInt(KEY_REMINDER_POS, 0)
-            apply()
+        kotlinx.coroutines.runBlocking {
+            val s = hydrationRepo.get().copy(
+                remindersEnabled = false,
+                reminderEndTime = 0,
+                reminderPos = 0
+            )
+            hydrationRepo.save(s)
         }
 
         calculateAndSetDailyGoal(0L)
@@ -410,7 +416,7 @@ class HydrationFragment : Fragment() {
     }
 
     private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-        if (isGranted) {
+    if (isGranted) {
             Toast.makeText(requireContext(), "Notification permission granted! Setting up reminders...", Toast.LENGTH_SHORT).show()
 
             if (pendingReminderInterval > 0) {
@@ -418,7 +424,7 @@ class HydrationFragment : Fragment() {
                 pendingReminderInterval = 0L // Reset after use
             } else {
 
-                val selectedInterval = prefs.getLong(KEY_REMINDER_INTERVAL, 0)
+        val selectedInterval = kotlinx.coroutines.runBlocking { hydrationRepo.get().reminderInterval }
                 if (selectedInterval > 0) {
                     startReminders(selectedInterval)
                 }
@@ -432,30 +438,34 @@ class HydrationFragment : Fragment() {
     }
 
     private fun saveData() {
-        prefs.edit().apply {
-            putInt(KEY_INTAKE, currentIntake)
-            putInt(KEY_GOAL, dailyGoal)
-            putInt(KEY_GLASS_SIZE, lastAddedAmount)
-            putInt(KEY_WAKING_HOURS, wakingHours)
-            putString(KEY_DATE, getCurrentDateString())
-            apply()
+        kotlinx.coroutines.runBlocking {
+            val s = hydrationRepo.get().copy(
+                intake = currentIntake,
+                goal = dailyGoal,
+                glassSize = lastAddedAmount,
+                wakingHours = wakingHours,
+                date = getCurrentDateString()
+            )
+            hydrationRepo.save(s)
         }
     }
 
     private fun loadData() {
-        val lastSavedDate = prefs.getString(KEY_DATE, "")
+    val lastSavedDate = kotlinx.coroutines.runBlocking { hydrationRepo.get().date }
         val todayDate = getCurrentDateString()
 
         if (lastSavedDate == todayDate) {
-            currentIntake = prefs.getInt(KEY_INTAKE, 0)
+            currentIntake = kotlinx.coroutines.runBlocking { hydrationRepo.get().intake }
         } else {
             currentIntake = 0
             // New day: Stop yesterday's reminders and reset for today.
-            prefs.edit().apply {
-                putBoolean(KEY_REMINDERS_ENABLED, false)
-                putLong(KEY_REMINDER_END_TIME, 0)
-                putInt(KEY_REMINDER_POS, 0) // This will make the spinner select "Off"
-                apply()
+            kotlinx.coroutines.runBlocking {
+                val s = hydrationRepo.get().copy(
+                    remindersEnabled = false,
+                    reminderEndTime = 0,
+                    reminderPos = 0
+                )
+                hydrationRepo.save(s)
             }
 
             val serviceIntent = Intent(requireContext(), WaterReminderService::class.java).apply {
@@ -477,12 +487,12 @@ class HydrationFragment : Fragment() {
                 pendingIntent.cancel()
             }
         }
-        lastAddedAmount = prefs.getInt(KEY_GLASS_SIZE, 0)
-        wakingHours = prefs.getInt(KEY_WAKING_HOURS, 8)
+    lastAddedAmount = kotlinx.coroutines.runBlocking { hydrationRepo.get().glassSize }
+    wakingHours = kotlinx.coroutines.runBlocking { hydrationRepo.get().wakingHours }
 
 
 
-        val reminderPosition = prefs.getInt(KEY_REMINDER_POS, 0)
+    val reminderPosition = kotlinx.coroutines.runBlocking { hydrationRepo.get().reminderPos }
         val selectedInterval = reminderOptions.values.toList().getOrElse(reminderPosition) { 0L }
         calculateAndSetDailyGoal(selectedInterval)
 
@@ -491,9 +501,9 @@ class HydrationFragment : Fragment() {
     }
 
     private fun resumeCountdownState() {
-        if (prefs.getBoolean(KEY_REMINDERS_ENABLED, false)) {
-            val originalInterval = prefs.getLong(KEY_REMINDER_INTERVAL, 0)
-            val endTime = prefs.getLong(KEY_REMINDER_END_TIME, 0)
+        if (kotlinx.coroutines.runBlocking { hydrationRepo.get().remindersEnabled }) {
+            val originalInterval = kotlinx.coroutines.runBlocking { hydrationRepo.get().reminderInterval }
+            val endTime = kotlinx.coroutines.runBlocking { hydrationRepo.get().reminderEndTime }
 
             if (originalInterval > 0 && endTime > 0) {
                 currentCountdownTotalDuration = originalInterval

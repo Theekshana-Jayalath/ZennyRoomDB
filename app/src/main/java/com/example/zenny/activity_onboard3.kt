@@ -7,7 +7,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import com.example.zenny.preferences.UserPreferences
+import com.example.zenny.data.DatabaseProvider
+import com.example.zenny.data.repository.UserRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class activity_onboard3 : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,9 +26,11 @@ class activity_onboard3 : AppCompatActivity() {
 
         val getStartedButton: Button = findViewById(R.id.button3)
         getStartedButton.setOnClickListener {
-            // Mark onboarding as complete
-            val userPreferences = UserPreferences(this)
-            userPreferences.saveOnboardingComplete(true)
+            // Mark onboarding as complete in Room
+            val repo = UserRepository(DatabaseProvider.get(this))
+            CoroutineScope(Dispatchers.IO).launch {
+                repo.saveOnboardingComplete(true)
+            }
 
             // Navigate to the home screen
             val intent = Intent(this, activity_home::class.java)

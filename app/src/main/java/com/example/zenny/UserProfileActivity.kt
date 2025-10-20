@@ -8,15 +8,16 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import com.bumptech.glide.Glide
+import com.example.zenny.data.DatabaseProvider
+import com.example.zenny.data.repository.UserRepository
 import com.example.zenny.databinding.ActivityUserProfileBinding
-import com.example.zenny.preferences.UserPreferences
 import com.example.zenny.utils.ImageUtils
 import java.io.File
 
 class UserProfileActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityUserProfileBinding
-    private lateinit var userPreferences: UserPreferences
+    private lateinit var userRepo: UserRepository
     private var newProfileImageFile: File? = null
 
     // Modern way to handle activity results
@@ -38,7 +39,7 @@ class UserProfileActivity : AppCompatActivity() {
         binding = ActivityUserProfileBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        userPreferences = UserPreferences(this)
+    userRepo = UserRepository(DatabaseProvider.get(this))
 
         loadUserProfile()
         setupDarkModeSwitch()
@@ -58,13 +59,13 @@ class UserProfileActivity : AppCompatActivity() {
     }
 
     private fun setupDarkModeSwitch() {
-        // Set the switch to the current theme state
-        binding.switchDarkMode.isChecked = userPreferences.isDarkMode()
+    // Set the switch to the current theme state
+    binding.switchDarkMode.isChecked = kotlinx.coroutines.runBlocking { userRepo.isDarkMode() }
 
         // Listen for changes on the switch
         binding.switchDarkMode.setOnCheckedChangeListener { _, isChecked ->
             // Save the new preference
-            userPreferences.saveDarkMode(isChecked)
+            kotlinx.coroutines.runBlocking { userRepo.saveDarkMode(isChecked) }
 
             // Apply the new theme
             if (isChecked) {
@@ -77,11 +78,11 @@ class UserProfileActivity : AppCompatActivity() {
     }
 
     private fun loadUserProfile() {
-        binding.etName.setText(userPreferences.getName())
-        binding.etDisplayedName.setText(userPreferences.getDisplayedName())
-        binding.etEmail.setText(userPreferences.getEmail())
+    binding.etName.setText(kotlinx.coroutines.runBlocking { userRepo.getName() })
+    binding.etDisplayedName.setText(kotlinx.coroutines.runBlocking { userRepo.getDisplayedName() })
+    binding.etEmail.setText(kotlinx.coroutines.runBlocking { userRepo.getEmail() })
 
-        val imagePath = userPreferences.getProfileImagePath()
+    val imagePath = kotlinx.coroutines.runBlocking { userRepo.getProfileImagePath() }
         if (imagePath != null) {
             val imageFile = File(imagePath)
             if (imageFile.exists()) {
@@ -99,13 +100,15 @@ class UserProfileActivity : AppCompatActivity() {
     }
 
     private fun saveUserProfile() {
-        userPreferences.saveName(binding.etName.text.toString())
-        userPreferences.saveDisplayedName(binding.etDisplayedName.text.toString())
-        userPreferences.saveEmail(binding.etEmail.text.toString())
+        kotlinx.coroutines.runBlocking {
+            userRepo.saveName(binding.etName.text.toString())
+            userRepo.saveDisplayedName(binding.etDisplayedName.text.toString())
+            userRepo.saveEmail(binding.etEmail.text.toString())
+        }
 
         // If a new image was selected and copied, save its permanent path
         newProfileImageFile?.let {
-            userPreferences.saveProfileImagePath(it.absolutePath)
+            kotlinx.coroutines.runBlocking { userRepo.saveProfileImagePath(it.absolutePath) }
         }
 
         Toast.makeText(this, "Profile Saved", Toast.LENGTH_SHORT).show()

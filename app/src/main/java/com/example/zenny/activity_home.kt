@@ -14,8 +14,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.bumptech.glide.Glide
-import com.example.zenny.preferences.HabitPreferences
-import com.example.zenny.preferences.UserPreferences
+import com.example.zenny.data.DatabaseProvider
+import com.example.zenny.data.repository.HabitLocalDataSource
+import com.example.zenny.data.repository.UserRepository
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import de.hdodenhof.circleimageview.CircleImageView
 import java.io.File
@@ -35,8 +36,8 @@ class activity_home : AppCompatActivity() {
     private lateinit var userProfileIcon: CircleImageView
     private lateinit var userDisplayedName: TextView
 
-    private lateinit var habitPreferences: HabitPreferences
-    private lateinit var userPreferences: UserPreferences
+    private lateinit var habitSource: HabitLocalDataSource
+    private lateinit var userRepo: UserRepository
     private var habits = mutableListOf<Habit>()
 
     private val profileUpdateLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -57,9 +58,13 @@ class activity_home : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        userPreferences = UserPreferences(this)
+    userRepo = UserRepository(DatabaseProvider.get(this))
 
-        if (!userPreferences.isOnboardingComplete()) {
+    // Check onboarding status from DB (blocking UI minimal with coroutine)
+    var onboardingComplete = false
+    kotlinx.coroutines.runBlocking { onboardingComplete = userRepo.isOnboardingComplete() }
+
+    if (!onboardingComplete) {
             val intent = Intent(this, activity_onboard1::class.java)
             startActivity(intent)
             finish()
@@ -77,8 +82,7 @@ class activity_home : AppCompatActivity() {
             }
         }
 
-
-        habitPreferences = HabitPreferences.getInstance(this)
+    habitSource = HabitLocalDataSource(DatabaseProvider.get(this))
 
         habitsContainer = findViewById(R.id.habitsContainer)
         addHabitButton = findViewById(R.id.btn_add_box)
@@ -101,7 +105,7 @@ class activity_home : AppCompatActivity() {
         checkDateAndResetProgress()
         loadHabits()
         updateProgress()
-        loadUserProfileData()
+    loadUserProfileData()
 
         bottomNav.setOnItemSelectedListener { item ->
             var selectedFragment: Fragment? = null
@@ -129,10 +133,14 @@ class activity_home : AppCompatActivity() {
     }
 
     private fun loadUserProfileData() {
-        val displayedName = userPreferences.getDisplayedName()
+        var displayedName: String? = null
+        var imagePath: String? = null
+        kotlinx.coroutines.runBlocking {
+            displayedName = userRepo.getDisplayedName()
+            imagePath = userRepo.getProfileImagePath()
+        }
         userDisplayedName.text = if (!displayedName.isNullOrEmpty()) displayedName else "User"
 
-        val imagePath = userPreferences.getProfileImagePath()
         if (!imagePath.isNullOrEmpty()) {
             val imageFile = File(imagePath)
             if (imageFile.exists()) {
@@ -148,18 +156,19 @@ class activity_home : AppCompatActivity() {
     }
 
     private fun checkDateAndResetProgress() {
-        val wasReset = habitPreferences.checkAndResetDailyProgress()
+    var wasReset = false
+    kotlinx.coroutines.runBlocking { wasReset = habitSource.checkAndResetDailyProgress() }
         if (wasReset) {
             Toast.makeText(this, "New day! Habits reset for today", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun saveHabits() {
-        habitPreferences.saveHabits(habits)
+    kotlinx.coroutines.runBlocking { habitSource.saveHabits(habits) }
     }
 
     private fun loadHabits() {
-        habits = habitPreferences.loadHabits()
+    habits = kotlinx.coroutines.runBlocking { habitSource.loadHabits() }
         habitsContainer.removeAllViews()
         habits.forEach { addHabitView(it) }
     }
@@ -181,7 +190,7 @@ class activity_home : AppCompatActivity() {
     }
 
     private fun updateProgress() {
-        val progressPercentage = habitPreferences.getProgressPercentage()
+    val progressPercentage = kotlinx.coroutines.runBlocking { habitSource.getProgressPercentage() }
         progressBar.progress = progressPercentage
         progressPercentageText.text = "$progressPercentage%"
     }
@@ -210,7 +219,7 @@ class activity_home : AppCompatActivity() {
                     val habit = Habit(name, if (selectedTime.isNotEmpty()) selectedTime else "No time set")
                     habits.add(habit)
                     addHabitView(habit)
-                    habitPreferences.addHabit(habit)
+                    kotlinx.coroutines.runBlocking { habitSource.addHabit(habit) }
                     updateProgress()
                     Toast.makeText(this, "Habit added", Toast.LENGTH_SHORT).show()
                 } else {
@@ -233,9 +242,9 @@ class activity_home : AppCompatActivity() {
         tvTime.text = habit.time
         checkBox.isChecked = habit.isCompleted
 
-        checkBox.setOnCheckedChangeListener { _, isChecked ->
+    checkBox.setOnCheckedChangeListener { _, isChecked ->
             habit.isCompleted = isChecked
-            habitPreferences.updateHabitCompletion(habit, isChecked)
+        kotlinx.coroutines.runBlocking { habitSource.updateHabitCompletion(habit, isChecked) }
             updateProgress()
         }
         
@@ -246,7 +255,7 @@ class activity_home : AppCompatActivity() {
                 .setPositiveButton("Delete") { _, _ ->
                     habits.remove(habit)
                     habitsContainer.removeView(habitView)
-                    habitPreferences.removeHabit(habit)
+            kotlinx.coroutines.runBlocking { habitSource.removeHabit(habit) }
                     updateProgress()
                     Toast.makeText(this, "Habit deleted", Toast.LENGTH_SHORT).show()
                 }

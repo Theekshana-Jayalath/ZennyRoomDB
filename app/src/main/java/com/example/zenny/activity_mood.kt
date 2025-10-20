@@ -31,11 +31,14 @@ import org.threeten.bp.temporal.TemporalAdjusters
 import java.text.SimpleDateFormat
 import java.util.*
 
+import com.example.zenny.data.DatabaseProvider
+import com.example.zenny.data.repository.MoodRepository
+
 class activity_mood : Fragment() {
 
     private lateinit var calendarView: MaterialCalendarView
     private lateinit var barChart: BarChart
-    private lateinit var pref: MoodPreference
+    private lateinit var moodRepo: MoodRepository
 
     override fun onCreateView(
         inflater: android.view.LayoutInflater,
@@ -44,7 +47,7 @@ class activity_mood : Fragment() {
     ): android.view.View? {
         val v = inflater.inflate(R.layout.activity_mood, container, false)
 
-        pref = MoodPreference(requireContext())
+        moodRepo = MoodRepository(DatabaseProvider.get(requireContext()))
         initializeViews(v)
         setupListeners()
         setupBarChart()
@@ -67,11 +70,10 @@ class activity_mood : Fragment() {
                 return@setOnDateChangedListener
             }
 
-            // Because past dates are disabled by the decorator, this will only fire for today
             val clickedDate = String.format("%04d-%02d-%02d", date.year, date.month, date.day)
-            val bs = AddMoodBottomSheet.newInstance(clickedDate)
+            val bs = AddMoodBottomSheet.newInstance(clickedDate, moodRepo) // ✅ fixed here
             bs.onSaved = { entry ->
-                pref.addOrUpdate(entry)
+                kotlinx.coroutines.runBlocking { moodRepo.addOrUpdate(entry) }
                 Toast.makeText(requireContext(), "Mood saved!", Toast.LENGTH_SHORT).show()
                 refreshAll()
             }
@@ -92,7 +94,12 @@ class activity_mood : Fragment() {
         val date = LocalDate.of(day.year, day.month, day.day)
         val startOfMonth = date.withDayOfMonth(1)
         val endOfMonth = date.with(TemporalAdjusters.lastDayOfMonth())
-        val moods = pref.getForDateRange(startOfMonth, endOfMonth)
+        val moods = kotlinx.coroutines.runBlocking {
+            moodRepo.getForDateRange(
+                startOfMonth.toString(),
+                endOfMonth.toString()
+            )
+        }
         barChart.axisRight.axisMaximum = 31f
         barChart.axisLeft.axisMaximum = 31f
         updateChartData(moods)
@@ -122,11 +129,13 @@ class activity_mood : Fragment() {
             }
         }
 
-        val barData = BarData(dataSet)
-        barData.barWidth = 0.5f
+    val barData = BarData(dataSet)
+    barData.barWidth = 0.8f
 
-        barChart.data = barData
-        barChart.invalidate()
+    barChart.data = barData
+    // Fit to bar width so first/last categories are fully visible
+    barChart.setFitBars(true)
+    barChart.invalidate()
     }
 
     private fun setupBarChart() {
@@ -136,34 +145,35 @@ class activity_mood : Fragment() {
         barChart.setDrawValueAboveBar(true)
         barChart.setTouchEnabled(false)
 
-        // --- X-Axis (Bottom - Emojis) ---
         val xAxis = barChart.xAxis
         xAxis.position = XAxis.XAxisPosition.BOTTOM
         xAxis.setDrawGridLines(false)
-        xAxis.granularity = 1f
+    xAxis.granularity = 1f
+    xAxis.isGranularityEnabled = true
         xAxis.valueFormatter = IndexAxisValueFormatter(EMOJI_LIST)
         xAxis.textSize = 12f
-
-
         xAxis.setLabelCount(EMOJI_LIST.size, true)
-        xAxis.setCenterAxisLabels(true)
+    // Single dataset: do not center labels; show one label per index and avoid clipping ends
+    xAxis.setCenterAxisLabels(false)
+    xAxis.setAvoidFirstLastClipping(true)
         xAxis.axisMinimum = -0.5f
         xAxis.axisMaximum = EMOJI_LIST.size - 0.5f
-
 
         barChart.axisLeft.isEnabled = false
         val yAxisRight = barChart.axisRight
         yAxisRight.axisMinimum = 0f
         yAxisRight.granularity = 1f
         yAxisRight.setDrawGridLines(false)
+
+    // setFitBars is called after setting data in updateChartData()
     }
 
     private fun refreshCalendarDecorators() {
         calendarView.removeDecorators()
-        calendarView.addDecorator(DisablePastDatesDecorator()) // Disable past dates
-        val moods = pref.getAll()
+        calendarView.addDecorator(DisablePastDatesDecorator())
+        val moods = kotlinx.coroutines.runBlocking { moodRepo.getAll() }
         moods.forEach { mood ->
-            val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse( mood.dateIso )
+            val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(mood.dateIso)
             date?.let {
                 val threeTenLocalDate =
                     org.threeten.bp.Instant.ofEpochMilli(it.time).atZone(ZoneId.systemDefault()).toLocalDate()
@@ -175,9 +185,7 @@ class activity_mood : Fragment() {
     }
 
     private inner class DisablePastDatesDecorator : DayViewDecorator {
-        override fun shouldDecorate(day: CalendarDay): Boolean {
-            return day.isBefore(CalendarDay.today())
-        }
+        override fun shouldDecorate(day: CalendarDay): Boolean = day.isBefore(CalendarDay.today())
         override fun decorate(view: DayViewFacade) {
             view.setDaysDisabled(true)
         }
@@ -218,84 +226,6 @@ class activity_mood : Fragment() {
             canvas.drawText(this.text, x, y, paint)
             paint.textSize = oldTextSize
             paint.textAlign = oldAlign
-        }
-    }
-
-    class AddMoodBottomSheet : BottomSheetDialogFragment() {
-        var onSaved: ((MoodEntry) -> Unit)? = null
-        private var dateIso: String = ""
-
-        override fun onCreate(savedInstanceState: Bundle?) {
-            super.onCreate(savedInstanceState)
-            dateIso = arguments?.getString("dateIso") ?: ""
-        }
-
-        override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-            val dialog = BottomSheetDialog(requireContext())
-            dialog.setContentView(R.layout.activity_bottom_sheet_add)
-
-            val btns = listOfNotNull(
-                dialog.findViewById<Button>(R.id.btnEmoji1),
-                dialog.findViewById<Button>(R.id.btnEmoji2),
-                dialog.findViewById<Button>(R.id.btnEmoji3),
-                dialog.findViewById<Button>(R.id.btnEmoji4),
-                dialog.findViewById<Button>(R.id.btnEmoji5)
-            )
-
-            btns.forEachIndexed { index, button ->
-                button.text = EMOJI_LIST.getOrNull(index) ?: ""
-            }
-
-            var chosen = EMOJI_LIST.first()
-            val existing = try {
-                MoodPreference(requireContext()).getForDate(dateIso).firstOrNull()
-            } catch (e: Exception) {
-                null
-            }
-            existing?.let { chosen = it.emoji }
-
-            fun updateEmojiSelection(selectedButton: Button) {
-                btns.forEach { button ->
-                    button.setBackgroundColor(
-                        if (button == selectedButton) Color.parseColor("#E0E0E0")
-                        else Color.TRANSPARENT
-                    )
-                }
-            }
-
-            btns.find { it.text.toString() == chosen }?.let { updateEmojiSelection(it) }
-
-            btns.forEach { b ->
-                b.setOnClickListener {
-                    chosen = b.text.toString()
-                    updateEmojiSelection(b)
-                }
-            }
-
-            val editNote = dialog.findViewById<EditText>(R.id.editNote)
-            existing?.note?.let { editNote?.setText(it) }
-
-            val btnSave = dialog.findViewById<Button>(R.id.btnSaveMood)
-            btnSave?.setOnClickListener {
-                val entry = MoodEntry(
-                    id = existing?.id ?: UUID.randomUUID().toString(),
-                    dateIso = dateIso, emoji = chosen,
-                    note = editNote?.text.toString() ?: ""
-                )
-                onSaved?.invoke(entry)
-                dismiss()
-            }
-            return dialog
-        }
-
-        companion object {
-            fun newInstance(dateIso: String): AddMoodBottomSheet {
-                val b = AddMoodBottomSheet()
-                val args = Bundle()
-                args.putString("dateIso", dateIso)
-                b.arguments = args
-                return b
-            }
         }
     }
 

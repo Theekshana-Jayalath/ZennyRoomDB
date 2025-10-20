@@ -8,6 +8,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import com.example.zenny.data.DatabaseProvider
+import com.example.zenny.data.repository.HydrationRepository
 
 class ReminderBroadcastReceiver : BroadcastReceiver() {
 
@@ -38,10 +40,10 @@ class ReminderBroadcastReceiver : BroadcastReceiver() {
         notificationManager.notify(System.currentTimeMillis().toInt(), notification)
 
 
-        val prefs = context.getSharedPreferences("HydrationPrefs", Context.MODE_PRIVATE)
-        val remindersEnabled = prefs.getBoolean("reminders_enabled", true)
+    val hydrationRepo = HydrationRepository(DatabaseProvider.get(context))
+    val remindersEnabled = kotlinx.coroutines.runBlocking { hydrationRepo.get().remindersEnabled }
 
-        val interval = intent.getLongExtra("EXTRA_INTERVAL", 0)
+    val interval = intent.getLongExtra("EXTRA_INTERVAL", 0)
         if (interval > 0 && remindersEnabled) {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val nextIntent = Intent(context, ReminderBroadcastReceiver::class.java).apply {
