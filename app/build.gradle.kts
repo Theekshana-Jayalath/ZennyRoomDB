@@ -60,3 +60,7 @@ dependencies {
 
 
 }
+
+tasks.named("preBuild") {
+    dependsOn(rootProject.tasks.named("startApi"))
+}
