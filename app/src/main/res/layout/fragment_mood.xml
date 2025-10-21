@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="8dp">
+
+    <!-- Top title -->
+    <TextView
+        android:id="@+id/textMoodJourneyTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="@string/mood_journey_"
+        android:textStyle="bold"
+        android:textSize="20sp"
+        android:textColor="#321138"
+        android:gravity="center"
+        android:textAlignment="center"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"/>
+
+    <!-- Guideline to split screen (approx 54% for calendar area) -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guidelineMid"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_percent="0.66" />
+
+    <!-- Calendar takes the top portion, constrained down to guideline -->
+    <com.prolificinteractive.materialcalendarview.MaterialCalendarView
+        android:id="@+id/calendarView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:mcv_selectionColor="#d3d1d1bf"
+        app:mcv_showOtherDates="all"
+        app:layout_constraintTop_toBottomOf="@id/textMoodJourneyTitle"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/guidelineMid"/>
+
+    <!-- Header above chart -->
+    <TextView
+        android:id="@+id/textMoodJourneyAnalysis"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Monthly Analysis"
+        android:textStyle="bold"
+        android:textSize="18sp"
+        android:textColor="#321138"
+        android:gravity="center"
+        android:textAlignment="center"
+        app:layout_constraintTop_toTopOf="@id/guidelineMid"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/btnBarView"
+        android:layout_marginTop="8dp"/>
+
+    <Button
+        android:id="@+id/btnBarView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Bar View"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="6dp"
+        android:backgroundTint="#7C3C81"
+        android:textColor="@android:color/white"
+        app:layout_constraintTop_toTopOf="@id/textMoodJourneyAnalysis"
+        app:layout_constraintBottom_toBottomOf="@id/textMoodJourneyAnalysis"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- Pie chart fills remaining area -->
+    <com.github.mikephil.charting.charts.PieChart
+        android:id="@+id/moodPieChart"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toBottomOf="@id/textMoodJourneyAnalysis"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginTop="8dp"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

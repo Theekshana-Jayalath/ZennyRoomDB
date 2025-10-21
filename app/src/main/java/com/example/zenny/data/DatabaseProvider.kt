@@ -8,3 +8,4 @@ object DatabaseProvider {
         db ?: AppDatabase.getInstance(context).also { db = it }
     }
 }
+

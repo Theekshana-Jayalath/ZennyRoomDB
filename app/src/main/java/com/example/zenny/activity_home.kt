@@ -115,7 +115,7 @@ class activity_home : AppCompatActivity() {
                     return@setOnItemSelectedListener true
                 }
                 R.id.nav_mood -> {
-                    selectedFragment = activity_mood.newInstance()
+                    selectedFragment = MoodFragment.newInstance()
                 }
                 R.id.nav_water -> {
                     selectedFragment = HydrationFragment.newInstance()

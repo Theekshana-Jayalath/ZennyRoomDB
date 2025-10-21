@@ -17,7 +17,7 @@ import com.example.zenny.data.entity.UserEntity
 
 @Database(
     entities = [HabitEntity::class, HabitMetaEntity::class, HydrationStateEntity::class, MoodEntity::class, UserEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

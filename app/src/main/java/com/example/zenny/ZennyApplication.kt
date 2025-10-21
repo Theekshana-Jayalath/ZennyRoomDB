@@ -2,6 +2,7 @@ package com.example.zenny
 
 import android.app.Application
 import androidx.appcompat.app.AppCompatDelegate
+import com.jakewharton.threetenabp.AndroidThreeTen
 import com.example.zenny.data.DatabaseProvider
 import com.example.zenny.data.repository.UserRepository
 import kotlinx.coroutines.CoroutineScope
@@ -12,6 +13,9 @@ class ZennyApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+    // Initialize ThreeTenABP for org.threeten.bp APIs
+    AndroidThreeTen.init(this)
 
         // Initialize database early
         val db = DatabaseProvider.get(this)
