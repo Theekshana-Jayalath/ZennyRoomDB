@@ -22,6 +22,17 @@
 				"$gradle"
 			],
 			"group": "build"
+		},
+		{
+			"label": "Assemble Debug",
+			"type": "shell",
+			"command": "./gradlew.bat assembleDebug",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [
+				"$gradle"
+			],
+			"group": "build"
 		}
 	]
 }

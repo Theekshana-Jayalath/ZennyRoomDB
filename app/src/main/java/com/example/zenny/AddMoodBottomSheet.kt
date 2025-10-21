@@ -6,35 +6,39 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.google.android.material.button.MaterialButtonToggleGroup
+import androidx.lifecycle.lifecycleScope
 import com.example.zenny.data.DatabaseProvider
 import com.example.zenny.data.repository.MoodRepository
+import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 class AddMoodBottomSheet : BottomSheetDialogFragment() {
 
-    var onSaved: ((MoodEntry) -> Unit)? = null
+    private lateinit var emojiButtons: List<Button>
+    private lateinit var notesEditText: EditText
+    private lateinit var saveButton: View
+    private lateinit var toggleGroup: MaterialButtonToggleGroup
 
-    private var selectedEmoji: String = "😀"
-    private lateinit var dateIso: String
-    private var repo: MoodRepository? = null
+    private var selectedEmoji: String = "😐" // Default to neutral
+    private var dateIso: String = ""
     private var existingEntry: MoodEntry? = null
+    private val repo: MoodRepository by lazy {
+        MoodRepository(DatabaseProvider.get(requireContext()))
+    }
+
+    // Callback to notify the fragment that data has changed
+    var onSaved: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        dateIso = requireArguments().getString(ARG_DATE) ?: ""
-        if (repo == null) {
-            // Fallback in case not provided via newInstance
-            repo = MoodRepository(DatabaseProvider.get(requireContext()))
-        }
-        kotlinx.coroutines.runBlocking {
-            existingEntry = repo?.getForDate(dateIso)?.firstOrNull()
-        }
+        dateIso = arguments?.getString(ARG_DATE) ?: ""
     }
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
+        inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
         return inflater.inflate(R.layout.activity_bottom_sheet_add, container, false)
@@ -43,52 +47,88 @@ class AddMoodBottomSheet : BottomSheetDialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        val btn1 = view.findViewById<Button>(R.id.btnEmoji1)
-        val btn2 = view.findViewById<Button>(R.id.btnEmoji2)
-        val btn3 = view.findViewById<Button>(R.id.btnEmoji3)
-        val btn4 = view.findViewById<Button>(R.id.btnEmoji4)
-        val btn5 = view.findViewById<Button>(R.id.btnEmoji5)
-        val note = view.findViewById<EditText>(R.id.editNote)
-        val save = view.findViewById<Button>(R.id.btnSaveMood)
+        // Initialize views
+    notesEditText = view.findViewById(R.id.editNote)
+        saveButton = view.findViewById(R.id.btnSaveMood)
+    toggleGroup = view.findViewById(R.id.moodToggleGroup)
+        emojiButtons = listOf(
+            view.findViewById<Button>(R.id.btnEmoji1),
+            view.findViewById<Button>(R.id.btnEmoji2),
+            view.findViewById<Button>(R.id.btnEmoji3),
+            view.findViewById<Button>(R.id.btnEmoji4),
+            view.findViewById<Button>(R.id.btnEmoji5)
+        )
 
-        existingEntry?.let {
-            selectedEmoji = it.emoji
-            note.setText(it.note)
+        // Default selection (neutral) and single-selection listener
+        val defaultId = getEmojiButtonId(selectedEmoji)
+        toggleGroup.check(defaultId)
+        toggleGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                val btn = view.findViewById<Button>(checkedId)
+                selectedEmoji = btn.text.toString()
+            }
         }
 
-        fun select(emoji: String) { selectedEmoji = emoji }
+        saveButton.setOnClickListener {
+            saveMoodEntry()
+        }
 
-        btn1.setOnClickListener { select(btn1.text.toString()) }
-        btn2.setOnClickListener { select(btn2.text.toString()) }
-        btn3.setOnClickListener { select(btn3.text.toString()) }
-        btn4.setOnClickListener { select(btn4.text.toString()) }
-        btn5.setOnClickListener { select(btn5.text.toString()) }
+        // Load existing data if available
+        loadExistingMood()
+    }
 
-        save.setOnClickListener {
-            val entry = MoodEntry(
-                id = existingEntry?.id ?: UUID.randomUUID().toString(),
-                dateIso = dateIso,
-                emoji = selectedEmoji,
-                note = note.text?.toString()?.trim().orEmpty(),
-                timestamp = System.currentTimeMillis()
-            )
-            onSaved?.invoke(entry)
-            // Also persist defensively in case caller forgets
-            try {
-                kotlinx.coroutines.runBlocking { repo?.addOrUpdate(entry) }
-            } catch (_: Exception) {}
-            dismiss()
+    private fun loadExistingMood() {
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            existingEntry = repo.getForDate(dateIso).firstOrNull()
+            // Switch back to the main thread to update UI
+            launch(Dispatchers.Main) {
+                existingEntry?.let {
+                    selectedEmoji = it.emoji
+                    notesEditText.setText(it.note)
+                    toggleGroup.check(getEmojiButtonId(it.emoji))
+                } ?: toggleGroup.check(getEmojiButtonId(selectedEmoji))
+            }
+        }
+    }
+
+    private fun getEmojiButtonId(emoji: String): Int = when (emoji) {
+        "😀" -> R.id.btnEmoji1
+        "😞" -> R.id.btnEmoji2
+        "😐" -> R.id.btnEmoji3
+        "😭" -> R.id.btnEmoji4
+        "😡" -> R.id.btnEmoji5
+        else -> R.id.btnEmoji3 // Default case
+    }
+
+    private fun saveMoodEntry() {
+        val note = notesEditText.text.toString().trim()
+        val entry = MoodEntry(
+            id = existingEntry?.id ?: UUID.randomUUID().toString(),
+            dateIso = dateIso,
+            emoji = selectedEmoji,
+            note = note,
+            timestamp = System.currentTimeMillis()
+        )
+
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            repo.addOrUpdate(entry)
+            // On completion, switch to main thread to trigger callback and dismiss
+            launch(Dispatchers.Main) {
+                onSaved?.invoke()
+                dismiss()
+            }
         }
     }
 
     companion object {
-        private const val ARG_DATE = "arg_date"
+        private const val ARG_DATE = "date"
 
-        fun newInstance(dateIso: String, moodRepo: MoodRepository? = null): AddMoodBottomSheet {
-            val f = AddMoodBottomSheet()
-            f.arguments = Bundle().apply { putString(ARG_DATE, dateIso) }
-            f.repo = moodRepo
-            return f
+        fun newInstance(date: String): AddMoodBottomSheet {
+            return AddMoodBottomSheet().apply {
+                arguments = Bundle().apply {
+                    putString(ARG_DATE, date)
+                }
+            }
         }
     }
 }
